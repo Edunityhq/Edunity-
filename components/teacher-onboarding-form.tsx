@@ -15,7 +15,16 @@ import {
 } from '@/components/ui/select'
 import { ChevronRight, ChevronLeft, Check, Star } from 'lucide-react'
 import { getStates, getLgasByState, getAreasByStateLga } from '@/data/locations'
-import { addDoc, collection, getDocs, limit, query, serverTimestamp, where } from 'firebase/firestore'
+import {
+  addDoc,
+  collection,
+  getDocs,
+  limit,
+  orderBy,
+  query,
+  serverTimestamp,
+  where,
+} from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 
 const SUBJECTS = [
@@ -76,6 +85,7 @@ interface FormData {
 export default function TeacherOnboardingForm() {
   const [step, setStep] = useState(0)
   const [submitted, setSubmitted] = useState(false)
+  const [isCheckingStep1, setIsCheckingStep1] = useState(false)
   const [formData, setFormData] = useState<FormData>({
     fullName: '',
     phoneNumber: '',
@@ -135,8 +145,67 @@ export default function TeacherOnboardingForm() {
     return Object.keys(newErrors).length === 0
   }
 
-  const handleNext = () => {
-    if (step === 1 && !validateStep1()) return
+  const normalizeEmail = (email: string) => email.trim().toLowerCase()
+  const normalizePhone = (phone: string) => phone.replace(/\D/g, '')
+
+  const checkDuplicateContact = async (email: string, phone: string) => {
+    const duplicateChecks = await Promise.all([
+      getDocs(query(collection(db, 'teacher_interests'), where('email', '==', email), limit(1))),
+      getDocs(query(collection(db, 'teacher_interests'), where('emailNormalized', '==', email), limit(1))),
+      getDocs(query(collection(db, 'teacher_interests'), where('phone', '==', phone), limit(1))),
+      getDocs(query(collection(db, 'teacher_interests'), where('phoneNormalized', '==', phone), limit(1))),
+    ])
+
+    return {
+      duplicateEmail: !duplicateChecks[0].empty || !duplicateChecks[1].empty,
+      duplicatePhone: !duplicateChecks[2].empty || !duplicateChecks[3].empty,
+    }
+  }
+
+  const getNextEdunityId = async () => {
+    const snap = await getDocs(
+      query(collection(db, 'teacher_interests'), orderBy('edunityIdSerial', 'desc'), limit(1))
+    )
+    const maxSerial = snap.empty ? 100 : (snap.docs[0].data().edunityIdSerial as number | undefined) ?? 100
+    const nextSerial = Math.max(101, maxSerial + 1)
+    const edunityId = `ED-ON-T-${String(nextSerial).padStart(5, '0')}`
+
+    return { edunityId, edunityIdSerial: nextSerial }
+  }
+
+  const handleNext = async () => {
+    if (step === 1) {
+      if (!formData.consent) {
+        setErrors((prev) => ({ ...prev, consent: 'You must agree to terms before proceeding.' }))
+        return
+      }
+
+      if (!validateStep1()) return
+
+      const normalizedEmail = normalizeEmail(formData.email)
+      const normalizedPhone = normalizePhone(formData.phoneNumber)
+      if (!normalizedPhone) {
+        setErrors((prev) => ({ ...prev, phoneNumber: 'Phone number is required' }))
+        return
+      }
+
+      setIsCheckingStep1(true)
+      try {
+        const { duplicateEmail, duplicatePhone } = await checkDuplicateContact(normalizedEmail, normalizedPhone)
+        if (duplicateEmail || duplicatePhone) {
+          setErrors((prev) => ({
+            ...prev,
+            submit: duplicateEmail
+              ? 'This email is already registered.'
+              : 'This phone number is already registered.',
+          }))
+          return
+        }
+      } finally {
+        setIsCheckingStep1(false)
+      }
+    }
+
     if (step === 2 && !validateStep2()) return
     if (step < 3) setStep(step + 1)
   }
@@ -150,22 +219,12 @@ export default function TeacherOnboardingForm() {
     }
 
     try {
-      const normalizedEmail = formData.email.trim().toLowerCase()
-      const normalizedPhone = formData.phoneNumber.replace(/\D/g, '')
-
-      const duplicateChecks = await Promise.all([
-        getDocs(query(collection(db, 'teacher_interests'), where('email', '==', normalizedEmail), limit(1))),
-        getDocs(
-          query(collection(db, 'teacher_interests'), where('emailNormalized', '==', normalizedEmail), limit(1))
-        ),
-        getDocs(query(collection(db, 'teacher_interests'), where('phone', '==', normalizedPhone), limit(1))),
-        getDocs(
-          query(collection(db, 'teacher_interests'), where('phoneNormalized', '==', normalizedPhone), limit(1))
-        ),
-      ])
-
-      const duplicateEmail = !duplicateChecks[0].empty || !duplicateChecks[1].empty
-      const duplicatePhone = !duplicateChecks[2].empty || !duplicateChecks[3].empty
+      const normalizedEmail = normalizeEmail(formData.email)
+      const normalizedPhone = normalizePhone(formData.phoneNumber)
+      const { duplicateEmail, duplicatePhone } = await checkDuplicateContact(
+        normalizedEmail,
+        normalizedPhone
+      )
 
       if (duplicateEmail || duplicatePhone) {
         setErrors((prev) => ({
@@ -176,8 +235,11 @@ export default function TeacherOnboardingForm() {
         }))
         return
       }
+      const { edunityId, edunityIdSerial } = await getNextEdunityId()
 
       const payload = {
+        edunityId,
+        edunityIdSerial,
         fullName: formData.fullName,
         email: normalizedEmail,
         emailNormalized: normalizedEmail,
@@ -740,10 +802,11 @@ export default function TeacherOnboardingForm() {
           ) : (
             <Button
               onClick={handleNext}
+              disabled={isCheckingStep1}
               className="flex-1 h-11 text-white font-semibold rounded-lg"
               style={{ backgroundColor: '#4A0000' }}
             >
-              Next
+              {isCheckingStep1 ? 'Checking...' : 'Next'}
               <ChevronRight className="w-4 h-4 ml-2" />
             </Button>
           )}
