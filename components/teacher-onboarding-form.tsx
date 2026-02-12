@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/select'
 import { ChevronRight, ChevronLeft, Check, Star } from 'lucide-react'
 import { getStates, getLgasByState, getAreasByStateLga } from '@/data/locations'
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore'
+import { addDoc, collection, getDocs, limit, query, serverTimestamp, where } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 
 const SUBJECTS = [
@@ -46,9 +46,9 @@ const SUBJECTS = [
 const EXAM_FOCUS = ['WAEC', 'NECO', 'JAMB', 'IGCSE', 'SAT']
 const CLASS_RANGE = [
   'Nursery / Early Years',
-  'Primary (Years 1â€“6)',
-  'Junior Secondary (JSS 1â€“3)',
-  'Senior Secondary (SSS 1â€“3)',
+  'Primary (Years 1-6)',
+  'Junior Secondary (JSS 1-3)',
+  'Senior Secondary (SSS 1-3)',
   'IGCSE / Cambridge',
   'A-Levels',
   'Adult / Professional learners',
@@ -143,12 +143,46 @@ export default function TeacherOnboardingForm() {
 
   const handleSubmit = async () => {
     if (!validateStep3()) return
+    if (!formData.consent) {
+      setErrors((prev) => ({ ...prev, consent: 'You must agree to terms before submitting.' }))
+      setStep(1)
+      return
+    }
 
     try {
+      const normalizedEmail = formData.email.trim().toLowerCase()
+      const normalizedPhone = formData.phoneNumber.replace(/\D/g, '')
+
+      const duplicateChecks = await Promise.all([
+        getDocs(query(collection(db, 'teacher_interests'), where('email', '==', normalizedEmail), limit(1))),
+        getDocs(
+          query(collection(db, 'teacher_interests'), where('emailNormalized', '==', normalizedEmail), limit(1))
+        ),
+        getDocs(query(collection(db, 'teacher_interests'), where('phone', '==', normalizedPhone), limit(1))),
+        getDocs(
+          query(collection(db, 'teacher_interests'), where('phoneNormalized', '==', normalizedPhone), limit(1))
+        ),
+      ])
+
+      const duplicateEmail = !duplicateChecks[0].empty || !duplicateChecks[1].empty
+      const duplicatePhone = !duplicateChecks[2].empty || !duplicateChecks[3].empty
+
+      if (duplicateEmail || duplicatePhone) {
+        setErrors((prev) => ({
+          ...prev,
+          submit: duplicateEmail
+            ? 'This email is already registered.'
+            : 'This phone number is already registered.',
+        }))
+        return
+      }
+
       const payload = {
         fullName: formData.fullName,
-        email: formData.email,
-        phone: formData.phoneNumber,
+        email: normalizedEmail,
+        emailNormalized: normalizedEmail,
+        phone: normalizedPhone,
+        phoneNormalized: normalizedPhone,
         state: formData.state,
         lga: formData.lga,
         area: formData.area,
@@ -294,7 +328,7 @@ export default function TeacherOnboardingForm() {
               </div>
 
               <p className="text-lg text-gray-700 leading-relaxed max-w-md">
-                Edunity connects skilled tutors to reputable schools and serious learners â€” from short-term roles to long-term teaching placements.
+                Edunity connects skilled tutors to reputable schools and serious learners, from short-term roles to long-term teaching placements.
               </p>
 
               <div className="space-y-4">
