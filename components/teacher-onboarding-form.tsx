@@ -517,7 +517,7 @@ export default function TeacherOnboardingForm() {
               <Checkbox
                 id="consent"
                 checked={formData.consent}
-                onCheckedChange={(checked) => setFormData({ ...formData, consent: checked as boolean })}
+                onCheckedChange={(checked) => setFormData({ ...formData, consent: checked === true })}
               />
               <label htmlFor="consent" className="text-sm text-gray-700 cursor-pointer">
                 I consent to Edunity contacting me and processing my information for onboarding and matching purposes.
@@ -802,7 +802,7 @@ export default function TeacherOnboardingForm() {
           ) : (
             <Button
               onClick={handleNext}
-              disabled={isCheckingStep1}
+              disabled={isCheckingStep1 || (step === 1 && !formData.consent)}
               className="flex-1 h-11 text-white font-semibold rounded-lg"
               style={{ backgroundColor: '#4A0000' }}
             >
