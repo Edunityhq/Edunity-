@@ -2,7 +2,7 @@
 
 import { CSSProperties, FormEvent, useState } from 'react'
 import { addDoc, collection, doc, getDocs, limit, query, runTransaction, serverTimestamp, where } from 'firebase/firestore'
-import { getDb } from '@/lib/firebase'
+import { getDb } from '../lib/firebase'
 
 type FormState = {
   parentFullName: string
