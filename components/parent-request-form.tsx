@@ -9,7 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ChevronLeft, ChevronRight, Check, Star } from 'lucide-react'
 import { getAreasByStateLga, getLgasByState, getStates } from '@/data/locations'
-import { addDoc, collection, doc, getDocs, limit, query, runTransaction, serverTimestamp, where } from 'firebase/firestore'
+import { addDoc, collection, getDocs, limit, query, serverTimestamp, where } from 'firebase/firestore'
 import { getDb } from '@/lib/firebase'
 
 const SUBJECTS_BY_CLASS: Record<string, string[]> = {
@@ -102,7 +102,6 @@ type ParentRequestFormData = {
 export default function ParentRequestForm() {
   const [step, setStep] = useState(0)
   const [submitted, setSubmitted] = useState(false)
-  const [checkingDuplicate, setCheckingDuplicate] = useState(false)
   const [formData, setFormData] = useState<ParentRequestFormData>({
     parentFullName: '',
     parentPhone: '',
@@ -128,44 +127,39 @@ export default function ParentRequestForm() {
   const normalizeEmail = (email: string) => email.trim().toLowerCase()
   const normalizePhone = (phone: string) => phone.replace(/\D/g, '')
 
+  const submitViaClientFirestore = async (payload: Record<string, unknown>) => {
+    const fallbackSerial = Date.now()
+    await addDoc(collection(getDb(), 'parent_requests'), {
+      ...payload,
+      edunityId: `ED-PR-TMP-${fallbackSerial}`,
+      edunityIdSerial: fallbackSerial,
+      createdAt: serverTimestamp(),
+    })
+  }
+
+  const checkDuplicateViaClientFirestore = async (parentEmailNormalized: string, parentPhoneNormalized: string) => {
+    const db = getDb()
+    const checks = await Promise.all([
+      getDocs(query(collection(db, 'parent_requests'), where('parentEmail', '==', parentEmailNormalized), limit(1))),
+      getDocs(
+        query(collection(db, 'parent_requests'), where('parentEmailNormalized', '==', parentEmailNormalized), limit(1))
+      ),
+      getDocs(query(collection(db, 'parent_requests'), where('parentPhone', '==', parentPhoneNormalized), limit(1))),
+      getDocs(
+        query(collection(db, 'parent_requests'), where('parentPhoneNormalized', '==', parentPhoneNormalized), limit(1))
+      ),
+    ])
+
+    return {
+      duplicateEmail: !checks[0].empty || !checks[1].empty,
+      duplicatePhone: !checks[2].empty || !checks[3].empty,
+    }
+  }
+
   const saveParentRequestLocally = (payload: Record<string, unknown>) => {
     const existingRaw = window.localStorage.getItem(PARENT_REQUESTS_STORAGE_KEY)
     const existing = existingRaw ? JSON.parse(existingRaw) : []
     window.localStorage.setItem(PARENT_REQUESTS_STORAGE_KEY, JSON.stringify([{ ...payload, createdAt: new Date().toISOString() }, ...existing]))
-  }
-
-  const checkDuplicateContact = async (email: string, phone: string) => {
-    const db = getDb()
-    const checks = await Promise.all([
-      getDocs(query(collection(db, 'parent_requests'), where('parentEmail', '==', email), limit(1))),
-      getDocs(query(collection(db, 'parent_requests'), where('parentEmailNormalized', '==', email), limit(1))),
-      getDocs(query(collection(db, 'parent_requests'), where('parentPhone', '==', phone), limit(1))),
-      getDocs(query(collection(db, 'parent_requests'), where('parentPhoneNormalized', '==', phone), limit(1))),
-    ])
-    return { duplicateEmail: !checks[0].empty || !checks[1].empty, duplicatePhone: !checks[2].empty || !checks[3].empty }
-  }
-
-  const getNextParentRequestId = async () => {
-    const db = getDb()
-    const counterRef = doc(db, 'counters', 'parent_request_serial')
-
-    const allocateSerial = async () =>
-      runTransaction(db, async (tx) => {
-        const snap = await tx.get(counterRef)
-        const current = snap.exists() ? Number((snap.data().current as number | undefined) ?? 100) : 100
-        const next = Math.max(101, current + 1)
-        tx.set(counterRef, { current: next, updatedAt: serverTimestamp() }, { merge: true })
-        return next
-      })
-
-    for (let attempts = 0; attempts < 5; attempts += 1) {
-      const serial = await allocateSerial()
-      const edunityId = `ED-PR-${String(serial).padStart(5, '0')}`
-      const exists = await getDocs(query(collection(db, 'parent_requests'), where('edunityId', '==', edunityId), limit(1)))
-      if (exists.empty) return { edunityId, edunityIdSerial: serial }
-    }
-
-    throw new Error('Could not allocate a unique Parent Request ID. Please retry.')
   }
 
   const validateStep1 = () => {
@@ -226,18 +220,6 @@ export default function ParentRequestForm() {
   const handleNext = async () => {
     if (step === 1) {
       if (!validateStep1()) return
-      const email = normalizeEmail(formData.parentEmail)
-      const phone = normalizePhone(formData.parentPhone)
-      setCheckingDuplicate(true)
-      try {
-        const { duplicateEmail, duplicatePhone } = await checkDuplicateContact(email, phone)
-        if (duplicateEmail || duplicatePhone) {
-          setErrors((prev) => ({ ...prev, submit: duplicateEmail ? 'This email already has a request.' : 'This phone already has a request.' }))
-          return
-        }
-      } finally {
-        setCheckingDuplicate(false)
-      }
     }
     if (step === 2 && !validateStep2()) return
     if (step < 3) setStep(step + 1)
@@ -248,16 +230,7 @@ export default function ParentRequestForm() {
     try {
       const parentEmailNormalized = normalizeEmail(formData.parentEmail)
       const parentPhoneNormalized = normalizePhone(formData.parentPhone)
-      const { duplicateEmail, duplicatePhone } = await checkDuplicateContact(parentEmailNormalized, parentPhoneNormalized)
-      if (duplicateEmail || duplicatePhone) {
-        setErrors((prev) => ({ ...prev, submit: duplicateEmail ? 'This email already has a request.' : 'This phone already has a request.' }))
-        return
-      }
-
-      const { edunityId, edunityIdSerial } = await getNextParentRequestId()
       const payload = {
-        edunityId,
-        edunityIdSerial,
         parentFullName: formData.parentFullName.trim(),
         parentPhone: parentPhoneNormalized,
         parentPhoneNormalized,
@@ -290,7 +263,61 @@ export default function ParentRequestForm() {
       }
 
       saveParentRequestLocally(payload)
-      await addDoc(collection(getDb(), 'parent_requests'), { ...payload, createdAt: serverTimestamp() })
+      const isParentRequestHost =
+        typeof window !== 'undefined' && window.location.host.toLowerCase().includes('parent-request')
+
+      if (isParentRequestHost) {
+        const duplicate = await checkDuplicateViaClientFirestore(parentEmailNormalized, parentPhoneNormalized)
+        if (duplicate.duplicateEmail || duplicate.duplicatePhone) {
+          throw new Error(duplicate.duplicateEmail ? 'This email already has a request.' : 'This phone already has a request.')
+        }
+
+        await submitViaClientFirestore(payload)
+        setSubmitted(true)
+        setErrors({})
+        return
+      }
+
+      try {
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 12000)
+        let response: Response
+        try {
+          response = await fetch('/api/parent-requests', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: controller.signal,
+          })
+        } finally {
+          clearTimeout(timeout)
+        }
+
+        const result = (await response.json()) as {
+          ok?: boolean
+          error?: string
+          duplicateEmail?: boolean
+          duplicatePhone?: boolean
+        }
+        if (!response.ok || !result.ok) {
+          const duplicateMessage = result.duplicateEmail
+            ? 'This email already has a request.'
+            : result.duplicatePhone
+              ? 'This phone already has a request.'
+              : undefined
+          if (response.status === 409) {
+            throw new Error(duplicateMessage || result.error || 'Unable to submit parent request.')
+          }
+
+          await submitViaClientFirestore(payload)
+        }
+      } catch (apiError) {
+        if (apiError instanceof Error && apiError.message.includes('already has a request')) {
+          throw apiError
+        }
+        await submitViaClientFirestore(payload)
+      }
+
       setSubmitted(true)
       setErrors({})
     } catch (err) {
@@ -644,8 +671,8 @@ export default function ParentRequestForm() {
               <Check className="w-4 h-4 mr-2" /> Submit Request
             </Button>
           ) : (
-            <Button onClick={handleNext} disabled={checkingDuplicate || (step === 1 && !formData.consent)} className="flex-1 h-11 text-white font-semibold rounded-lg" style={{ backgroundColor: '#4A0000' }}>
-              {checkingDuplicate ? 'Checking...' : 'Next'} <ChevronRight className="w-4 h-4 ml-2" />
+            <Button onClick={handleNext} disabled={step === 1 && !formData.consent} className="flex-1 h-11 text-white font-semibold rounded-lg" style={{ backgroundColor: '#4A0000' }}>
+              Next <ChevronRight className="w-4 h-4 ml-2" />
             </Button>
           )}
         </div>
