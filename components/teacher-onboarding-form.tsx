@@ -16,16 +16,14 @@ import {
 import { ChevronRight, ChevronLeft, Check, Star } from 'lucide-react'
 import { getStates, getLgasByState, getAreasByStateLga } from '@/data/locations'
 import {
-  addDoc,
   collection,
   getDocs,
   limit,
-  orderBy,
   query,
-  serverTimestamp,
   where,
 } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
+import { getDb } from '@/lib/firebase'
+import { TEACHER_LEADS_COLLECTION } from '@/lib/teacher-leads'
 
 const SUBJECTS = [
   'Mathematics',
@@ -63,6 +61,7 @@ const CLASS_RANGE = [
   'Adult / Professional learners',
 ]
 const LESSON_TYPES = ['Online', 'In-person', 'Both']
+const TEACHER_LEADS_STORAGE_KEY = 'edunity_teacher_leads_v1'
 
 interface FormData {
   fullName: string
@@ -104,6 +103,37 @@ export default function TeacherOnboardingForm() {
     teachingExperience: '',
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
+
+  const saveTeacherLeadLocally = () => {
+    const normalizedEmail = normalizeEmail(formData.email)
+    const normalizedPhone = normalizePhone(formData.phoneNumber)
+    const lead = {
+      id: `teacher_local_${Date.now()}`,
+      fullName: formData.fullName,
+      email: normalizedEmail,
+      phone: normalizedPhone,
+      state: formData.state,
+      lga: formData.lga,
+      area: formData.area,
+      subjects: formData.subjects,
+      examFocus: formData.examFocus,
+      availability: formData.availability,
+      lessonType: formData.lessonType,
+      privateTutoring: formData.privateTutoring,
+      teachingExperience: formData.teachingExperience,
+      createdAt: new Date().toISOString(),
+      source: 'teacher_form',
+    }
+
+    const existingRaw = window.localStorage.getItem(TEACHER_LEADS_STORAGE_KEY)
+    const existing = existingRaw ? JSON.parse(existingRaw) : []
+    const duplicate = existing.some(
+      (row: any) => row.email?.toLowerCase() === normalizedEmail || row.phone === normalizedPhone
+    )
+    if (!duplicate) {
+      window.localStorage.setItem(TEACHER_LEADS_STORAGE_KEY, JSON.stringify([lead, ...existing]))
+    }
+  }
 
   const validateStep1 = () => {
     const newErrors: Record<string, string> = {}
@@ -150,27 +180,16 @@ export default function TeacherOnboardingForm() {
 
   const checkDuplicateContact = async (email: string, phone: string) => {
     const duplicateChecks = await Promise.all([
-      getDocs(query(collection(db, 'teacher_interests'), where('email', '==', email), limit(1))),
-      getDocs(query(collection(db, 'teacher_interests'), where('emailNormalized', '==', email), limit(1))),
-      getDocs(query(collection(db, 'teacher_interests'), where('phone', '==', phone), limit(1))),
-      getDocs(query(collection(db, 'teacher_interests'), where('phoneNormalized', '==', phone), limit(1))),
+      getDocs(query(collection(getDb(), TEACHER_LEADS_COLLECTION), where('email', '==', email), limit(1))),
+      getDocs(query(collection(getDb(), TEACHER_LEADS_COLLECTION), where('emailNormalized', '==', email), limit(1))),
+      getDocs(query(collection(getDb(), TEACHER_LEADS_COLLECTION), where('phone', '==', phone), limit(1))),
+      getDocs(query(collection(getDb(), TEACHER_LEADS_COLLECTION), where('phoneNormalized', '==', phone), limit(1))),
     ])
 
     return {
       duplicateEmail: !duplicateChecks[0].empty || !duplicateChecks[1].empty,
       duplicatePhone: !duplicateChecks[2].empty || !duplicateChecks[3].empty,
     }
-  }
-
-  const getNextEdunityId = async () => {
-    const snap = await getDocs(
-      query(collection(db, 'teacher_interests'), orderBy('edunityIdSerial', 'desc'), limit(1))
-    )
-    const maxSerial = snap.empty ? 100 : (snap.docs[0].data().edunityIdSerial as number | undefined) ?? 100
-    const nextSerial = Math.max(101, maxSerial + 1)
-    const edunityId = `ED-ON-T-${String(nextSerial).padStart(5, '0')}`
-
-    return { edunityId, edunityIdSerial: nextSerial }
   }
 
   const handleNext = async () => {
@@ -235,11 +254,7 @@ export default function TeacherOnboardingForm() {
         }))
         return
       }
-      const { edunityId, edunityIdSerial } = await getNextEdunityId()
-
       const payload = {
-        edunityId,
-        edunityIdSerial,
         fullName: formData.fullName,
         email: normalizedEmail,
         emailNormalized: normalizedEmail,
@@ -260,19 +275,30 @@ export default function TeacherOnboardingForm() {
       }
 
       console.log('Submitting payload:', payload)
+      saveTeacherLeadLocally()
 
-      try {
-        const docRef = await addDoc(collection(db, 'teacher_interests'), {
-          ...payload,
-          createdAt: serverTimestamp(),
-        })
-        console.log('Saved to Firestore:', docRef.id)
-        setSubmitted(true)
-        setErrors({})
-      } catch (e) {
-        console.error('Firestore error:', e)
-        throw e
+      const response = await fetch('/api/teacher-leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const result = (await response.json()) as {
+        ok?: boolean
+        error?: string
+        duplicateEmail?: boolean
+        duplicatePhone?: boolean
       }
+      if (!response.ok || !result.ok) {
+        const duplicateMessage = result.duplicateEmail
+          ? 'This email is already registered.'
+          : result.duplicatePhone
+            ? 'This phone number is already registered.'
+            : undefined
+        throw new Error(duplicateMessage || result.error || 'Failed to submit teacher lead.')
+      }
+
+      setSubmitted(true)
+      setErrors({})
     } catch (err) {
       setErrors({
         submit: err instanceof Error ? `Error submitting form: ${err.message}` : 'Error submitting form.',

@@ -11,6 +11,15 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        edunity: {
+          primary: 'var(--edunity-primary)',
+          accent: 'var(--edunity-accent)',
+          bg: 'var(--edunity-bg)',
+          surface: 'var(--edunity-surface)',
+          border: 'var(--edunity-border)',
+          text: 'var(--edunity-text)',
+          muted: 'var(--edunity-muted)',
+        },
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
         card: {
@@ -61,11 +70,22 @@ const config: Config = {
           border: 'hsl(var(--sidebar-border))',
           ring: 'hsl(var(--sidebar-ring))',
         },
+        ink: {
+          900: '#4a0000',
+          700: '#632424',
+          600: '#7a4040',
+          500: '#8f6a6a',
+          400: '#b08f9b',
+          200: '#d7ced8',
+          100: '#ebe5ee',
+          50: '#f6f2f8',
+        },
+        mist: '#f6f2f8',
       },
       borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
+        lg: 'calc(var(--radius) + 2px)',
+        md: 'var(--radius)',
+        sm: 'calc(var(--radius) - 2px)',
       },
       keyframes: {
         'accordion-down': {

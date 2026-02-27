@@ -77,6 +77,7 @@ const CLASS_RANGE = [
 
 const LESSON_TYPES = ['Online', 'In-person', 'Both']
 const PARENT_REQUESTS_STORAGE_KEY = 'edunity_parent_requests_v1'
+const PARENT_REQUEST_API_TIMEOUT_MS = 4000
 
 type ParentRequestFormData = {
   parentFullName: string
@@ -126,6 +127,11 @@ export default function ParentRequestForm() {
 
   const normalizeEmail = (email: string) => email.trim().toLowerCase()
   const normalizePhone = (phone: string) => phone.replace(/\D/g, '')
+  const isParentRequestHost = () => {
+    if (typeof window === 'undefined') return false
+    const host = window.location.hostname.toLowerCase()
+    return host.includes('parent-request')
+  }
 
   const submitViaClientFirestore = async (payload: Record<string, unknown>) => {
     const fallbackSerial = Date.now()
@@ -263,10 +269,7 @@ export default function ParentRequestForm() {
       }
 
       saveParentRequestLocally(payload)
-      const isParentRequestHost =
-        typeof window !== 'undefined' && window.location.host.toLowerCase().includes('parent-request')
-
-      if (isParentRequestHost) {
+      if (isParentRequestHost()) {
         const duplicate = await checkDuplicateViaClientFirestore(parentEmailNormalized, parentPhoneNormalized)
         if (duplicate.duplicateEmail || duplicate.duplicatePhone) {
           throw new Error(duplicate.duplicateEmail ? 'This email already has a request.' : 'This phone already has a request.')
@@ -280,7 +283,7 @@ export default function ParentRequestForm() {
 
       try {
         const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 12000)
+        const timeout = setTimeout(() => controller.abort(), PARENT_REQUEST_API_TIMEOUT_MS)
         let response: Response
         try {
           response = await fetch('/api/parent-requests', {

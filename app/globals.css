@@ -2,93 +2,87 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: Arial, Helvetica, sans-serif;
-}
-
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+html {
+  color-scheme: light;
 }
 
 @layer base {
   :root {
-    --background: 245 33% 96%;
-    --foreground: 0 0% 10%;
+    --edunity-primary: #4a0000;
+    --edunity-accent: #8a4b4b;
+    --edunity-bg: #f2eff5;
+    --edunity-surface: #ffffff;
+    --edunity-border: #c4c3d0;
+    --edunity-text: #4a0000;
+    --edunity-muted: #7f6666;
+
+    --background: 270 23% 95%;
+    --foreground: 0 100% 15%;
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 10%;
+    --card-foreground: 0 100% 15%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 10%;
+    --popover-foreground: 0 100% 15%;
     --primary: 0 100% 15%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 245 33% 90%;
-    --secondary-foreground: 0 0% 20%;
-    --muted: 245 33% 85%;
-    --muted-foreground: 0 0% 45%;
-    --accent: 0 100% 15%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 245 33% 88%;
-    --input: 245 33% 92%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 270 20% 92%;
+    --secondary-foreground: 0 45% 24%;
+    --muted: 270 18% 93%;
+    --muted-foreground: 0 18% 45%;
+    --accent: 0 30% 42%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 65% 44%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 246 14% 79%;
+    --input: 246 14% 79%;
     --ring: 0 100% 15%;
     --chart-1: 0 100% 15%;
-    --chart-2: 245 33% 75%;
-    --chart-3: 0 100% 30%;
-    --chart-4: 245 33% 60%;
-    --chart-5: 0 80% 40%;
-    --radius: 0.5rem;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
-  }
-  .dark {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
-  }
-}
+    --chart-2: 0 30% 42%;
+    --chart-3: 343 36% 38%;
+    --chart-4: 264 23% 43%;
+    --chart-5: 16 58% 48%;
+    --radius: 0.875rem;
 
-@layer base {
+    --sidebar-background: 270 20% 92%;
+    --sidebar-foreground: 0 100% 15%;
+    --sidebar-primary: 0 100% 15%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 270 24% 88%;
+    --sidebar-accent-foreground: 0 100% 15%;
+    --sidebar-border: 246 14% 79%;
+    --sidebar-ring: 0 100% 15%;
+  }
+
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
+    font-family: Inter, "Segoe UI", Arial, sans-serif;
+    font-size: 0.875rem;
+    background-image: radial-gradient(1000px 300px at 0% -10%, rgba(74, 0, 0, 0.09), transparent 70%);
+  }
+}
+
+@layer components {
+  .edunity-primary {
+    color: hsl(var(--primary));
+  }
+
+  .edunity-card {
+    @apply rounded-md border border-border bg-card shadow-sm;
+    box-shadow: 0 8px 24px rgba(16, 24, 40, 0.06);
+  }
+
+  .edunity-button {
+    @apply inline-flex h-8 items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90;
+  }
+
+  .edunity-input {
+    @apply h-8 w-full rounded-md border border-input bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring;
+  }
+
+  .edunity-sidebar {
+    @apply border-r border-sidebar-border bg-sidebar;
   }
 }

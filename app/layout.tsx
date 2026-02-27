@@ -1,15 +1,27 @@
 import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
+import type { Viewport } from 'next'
+import { Inter } from 'next/font/google'
 
 import './globals.css'
+import { AuthProvider } from '@/lib/auth/auth-context'
+import { ThemeProvider } from '@/lib/theme/theme-provider'
 
-const _geist = Geist({ subsets: ['latin'] })
-const _geistMono = Geist_Mono({ subsets: ['latin'] })
+const inter = Inter({ subsets: ['latin'], display: 'swap' })
 
 export const metadata: Metadata = {
-  title: 'Edunity - Teacher Onboarding',
-  description: 'Join Edunity as a teacher. Complete your onboarding form to get started.',
-  generator: 'Edunity',
+  title: {
+    default: 'Edunity',
+    template: '%s | Edunity',
+  },
+  description: 'Edunity operations dashboard and onboarding forms.',
+  generator: 'v0.app',
+  icons: {
+    icon: '/edunity-logo.jpg',
+  },
+}
+
+export const viewport: Viewport = {
+  colorScheme: 'light',
 }
 
 export default function RootLayout({
@@ -18,8 +30,12 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
-      <body className="font-sans antialiased">{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${inter.className} font-sans antialiased`}>
+        <ThemeProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </ThemeProvider>
+      </body>
     </html>
   )
 }
