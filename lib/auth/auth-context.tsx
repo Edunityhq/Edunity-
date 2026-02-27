@@ -47,7 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true)
     try {
       const { authenticateUser } = await import('./mock-users')
-      const mockUser = authenticateUser(identifier, password)
+      const mockUser = await authenticateUser(identifier, password)
 
       if (!mockUser) {
         throw new Error('Invalid username/email or password.')
@@ -74,7 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const { getUsers } = await import('./mock-users')
-    const updated = getUsers().find((entry) => entry.id === current.id)
+    const updated = (await getUsers()).find((entry) => entry.id === current.id)
     if (!updated) {
       clearSession()
       setUser(null)
@@ -92,7 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const { changeUserPassword } = await import('./mock-users')
-    changeUserPassword(user.id, currentPassword, nextPassword)
+    await changeUserPassword(user.id, currentPassword, nextPassword)
     await refreshUser()
   }
 

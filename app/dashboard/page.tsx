@@ -167,8 +167,20 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!hasAccess) return
-    const loadedUsers = getUsers().filter((entry) => entry.role !== 'admin' && entry.status === 'active')
-    setStaffUsers(loadedUsers)
+    let mounted = true
+
+    async function loadStaffUsers() {
+      const loadedUsers = (await getUsers()).filter(
+        (entry) => entry.role !== 'admin' && entry.status === 'active'
+      )
+      if (!mounted) return
+      setStaffUsers(loadedUsers)
+    }
+
+    void loadStaffUsers()
+    return () => {
+      mounted = false
+    }
   }, [hasAccess])
 
   useEffect(() => {

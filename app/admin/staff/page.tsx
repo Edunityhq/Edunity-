@@ -33,15 +33,15 @@ export default function StaffDirectoryPage() {
   const [role, setRole] = useState<Role>('marketing_staff')
   const [message, setMessage] = useState('')
 
-  const refresh = () => {
-    setUsers(getUsers())
+  const refresh = async () => {
+    setUsers(await getUsers())
   }
 
   useEffect(() => {
-    refresh()
+    void refresh()
   }, [])
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     setMessage('')
     if (!name.trim() || !username.trim()) {
       setMessage('Name and username are required.')
@@ -49,14 +49,14 @@ export default function StaffDirectoryPage() {
     }
 
     try {
-      createUser({
+      await createUser({
         name,
         username,
         email,
         password,
         role,
       })
-      refresh()
+      await refresh()
       setName('')
       setUsername('')
       setEmail('')
@@ -68,7 +68,7 @@ export default function StaffDirectoryPage() {
     }
   }
 
-  const handleDelete = (target: MockUser) => {
+  const handleDelete = async (target: MockUser) => {
     if (target.id === user?.id) {
       setMessage('You cannot delete your own account while logged in.')
       return
@@ -78,18 +78,18 @@ export default function StaffDirectoryPage() {
     if (!confirmed) return
 
     try {
-      deleteUser(target.id)
-      refresh()
+      await deleteUser(target.id)
+      await refresh()
       setMessage(`${target.name} deleted.`)
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Failed to delete user.')
     }
   }
 
-  const handleResetPassword = (target: MockUser) => {
+  const handleResetPassword = async (target: MockUser) => {
     try {
-      const updated = resetUserPassword(target.id)
-      refresh()
+      const updated = await resetUserPassword(target.id)
+      await refresh()
       setMessage(
         `${updated.name} password reset to ${
           updated.role === 'admin' ? DEFAULT_PASSWORDS.admin : DEFAULT_PASSWORDS.staff
