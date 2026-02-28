@@ -2,7 +2,8 @@
 
 import { FormEvent, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
+import { useEffect } from 'react'
 import {
   findTeacherLeadByEdunityId,
   normalizeEdunityId,
@@ -15,14 +16,25 @@ import {
 
 export default function TeacherDocumentLoginPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const initialEdunityId = normalizeEdunityId(searchParams.get('edunityId') ?? '')
-  const nextPath = searchParams.get('next') ?? ''
 
   const [username, setUsername] = useState('')
-  const [password, setPassword] = useState(initialEdunityId)
+  const [password, setPassword] = useState('')
+  const [nextPath, setNextPath] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const edunityIdParam = normalizeEdunityId(params.get('edunityId') ?? '')
+    const nextParam = params.get('next') ?? ''
+    if (edunityIdParam) {
+      setPassword((prev) => (prev ? prev : edunityIdParam))
+    }
+    if (nextParam) {
+      setNextPath(nextParam)
+    }
+  }, [])
 
   const normalizedUsername = useMemo(
     () => normalizeTeacherFirstName(username),
