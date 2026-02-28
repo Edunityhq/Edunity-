@@ -1,6 +1,7 @@
 import { FirebaseApp, getApp, getApps, initializeApp } from 'firebase/app'
 import { Auth, getAuth } from 'firebase/auth'
 import { Firestore, getFirestore } from 'firebase/firestore'
+import { FirebaseStorage, getStorage } from 'firebase/storage'
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY?.trim(),
@@ -14,6 +15,7 @@ const firebaseConfig = {
 let app: FirebaseApp | null = null
 let auth: Auth | null = null
 let db: Firestore | null = null
+let storage: FirebaseStorage | null = null
 
 function getFirebaseConfig() {
   if (!firebaseConfig.apiKey) {
@@ -41,4 +43,10 @@ export function getDb() {
   if (db) return db
   db = getFirestore(getFirebaseApp())
   return db
+}
+
+export function getFirebaseStorage() {
+  if (storage) return storage
+  storage = getStorage(getFirebaseApp())
+  return storage
 }
