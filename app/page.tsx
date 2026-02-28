@@ -5,7 +5,7 @@ import ParentRequestForm from '@/components/parent-request-form'
 export default async function Page() {
   const host = ((await headers()).get('host') ?? '').toLowerCase()
   const isParentRequestHost = host.includes('parent-request')
-  const isTeacherUploadHost = host.endsWith(':3003')
+  const isTeacherUploadHost = host.includes('teacher-document') || host.endsWith(':3003')
   const isDashboardHost =
     host.includes('intra-edunity') ||
     host.includes('edunity-ui') ||
