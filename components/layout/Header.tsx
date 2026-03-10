@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Bell, LogOut, Menu, Search, UserCog } from 'lucide-react'
 import { useAuth } from '@/lib/auth/auth-context'
+import { rolePermissions } from '@/lib/config/roles'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import {
@@ -22,6 +23,7 @@ interface HeaderProps {
 export function Header({ onMenuClick }: HeaderProps) {
   const router = useRouter()
   const { user, logout } = useAuth()
+  const roleLabel = user ? rolePermissions[user.role]?.label ?? user.role : 'Guest'
 
   const handleLogout = () => {
     logout()
@@ -48,7 +50,7 @@ export function Header({ onMenuClick }: HeaderProps) {
           variant="outline"
           className="hidden border-[#4A0000]/25 bg-[#4A0000]/10 text-[11px] text-[#4A0000] sm:inline-flex"
         >
-          {user?.role === 'admin' ? 'Admin' : 'User'}
+          {roleLabel}
         </Badge>
         <DropdownMenu>
           <DropdownMenuTrigger className="flex items-center gap-2 rounded-md p-1.5 hover:bg-[#EDE6F1]">

@@ -8,6 +8,7 @@ import {
   setDoc,
 } from 'firebase/firestore'
 import { getDb } from '@/lib/firebase'
+import type { LeadType } from '@/lib/types'
 
 export const LEAD_ASSIGNMENTS_COLLECTION = 'lead_assignments'
 const ASSIGNMENTS_STORAGE_KEY = 'edunity_lead_assignments_v1'
@@ -21,6 +22,9 @@ export interface LeadAssignment {
   assignedByUserId: string
   assignedByName: string
   assignedAt: string
+  assignmentMode?: 'manual' | 'round_robin' | 'override'
+  leadType?: LeadType
+  notes?: string
 }
 
 function canUseStorage() {
@@ -68,6 +72,15 @@ export async function getLeadAssignments(): Promise<Record<string, LeadAssignmen
       const assignedByUserId = typeof data.assignedByUserId === 'string' ? data.assignedByUserId : ''
       const assignedByName = typeof data.assignedByName === 'string' ? data.assignedByName : ''
       const assignedAt = typeof data.assignedAt === 'string' ? data.assignedAt : new Date().toISOString()
+      const assignmentMode =
+        data.assignmentMode === 'round_robin' || data.assignmentMode === 'override'
+          ? data.assignmentMode
+          : 'manual'
+      const leadType =
+        data.leadType === 'SCHOOL' || data.leadType === 'PARENT' || data.leadType === 'TEACHER'
+          ? data.leadType
+          : undefined
+      const notes = typeof data.notes === 'string' ? data.notes : undefined
       if (!leadId || !collectionName || !assignedUserId) continue
 
       next[row.id] = {
@@ -79,6 +92,9 @@ export async function getLeadAssignments(): Promise<Record<string, LeadAssignmen
         assignedByUserId,
         assignedByName,
         assignedAt,
+        assignmentMode,
+        leadType,
+        notes,
       }
     }
 
@@ -96,6 +112,9 @@ export async function saveLeadAssignment(input: {
   assignedUserName: string
   assignedByUserId: string
   assignedByName: string
+  assignmentMode?: 'manual' | 'round_robin' | 'override'
+  leadType?: LeadType
+  notes?: string
 }): Promise<LeadAssignment> {
   const id = buildLeadAssignmentId(input.collectionName, input.leadId)
   const assignment: LeadAssignment = {
@@ -107,6 +126,9 @@ export async function saveLeadAssignment(input: {
     assignedByUserId: input.assignedByUserId,
     assignedByName: input.assignedByName,
     assignedAt: new Date().toISOString(),
+    assignmentMode: input.assignmentMode ?? 'manual',
+    leadType: input.leadType,
+    notes: input.notes,
   }
 
   const local = readLocalAssignments()

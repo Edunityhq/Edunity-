@@ -30,6 +30,28 @@ const LEGACY_DEFAULT_PASSWORDS = new Set(['password123', 'Eduntiy', 'eduntiy'])
 const DEFAULT_ADMIN_PASSWORD = 'Edunity'
 const DEFAULT_STAFF_PASSWORD = 'Edunity'
 const LEGACY_SEED_USER_IDS = new Set(['user_staff_helen', 'user_staff_joel', 'user_staff_odunayo'])
+const NON_ADMIN_DEFAULT_ROLE: Role = 'marketing_staff'
+const ROLE_SORT_ORDER: Role[] = [
+  'admin',
+  'lead',
+  'sales',
+  'marketing',
+  'finance',
+  'hr',
+  'ops',
+  'marketing_staff',
+]
+
+const ROLE_DEPARTMENTS: Record<Role, string> = {
+  admin: 'Administration',
+  lead: 'Lead Generation',
+  sales: 'Sales',
+  marketing: 'Marketing',
+  finance: 'Finance',
+  hr: 'Human Resources',
+  ops: 'Operations',
+  marketing_staff: 'Marketing',
+}
 
 const SEED_USERS: MockUser[] = [
   {
@@ -65,8 +87,12 @@ function normalizeUsername(value: string): string {
   return value.trim().replace(/\s+/g, '')
 }
 
+function isRole(value: unknown): value is Role {
+  return typeof value === 'string' && value in ROLE_DEPARTMENTS
+}
+
 function roleDepartment(role: Role): string {
-  return role === 'admin' ? 'Administration' : 'Operations'
+  return ROLE_DEPARTMENTS[role]
 }
 
 function toUsername(name: string): string {
@@ -114,7 +140,7 @@ function sanitizeUser(input: Partial<MockUser>): MockUser | null {
   const username = normalizeUsername(usernameSource || '')
   if (!name || !username) return null
 
-  const role: Role = input.role === 'admin' ? 'admin' : 'marketing_staff'
+  const role: Role = isRole(input.role) ? input.role : NON_ADMIN_DEFAULT_ROLE
   const email =
     typeof input.email === 'string' && input.email.trim()
       ? normalizeIdentifier(input.email)
@@ -209,7 +235,7 @@ function withDefaultUsers(users: MockUser[]): MockUser[] {
 
   unique.sort((a, b) => {
     if (a.role === b.role) return a.name.localeCompare(b.name)
-    return a.role === 'admin' ? -1 : 1
+    return ROLE_SORT_ORDER.indexOf(a.role) - ROLE_SORT_ORDER.indexOf(b.role)
   })
 
   return unique

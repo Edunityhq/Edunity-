@@ -11,6 +11,7 @@ import {
   DEFAULT_PASSWORDS,
 } from '@/lib/auth/mock-users'
 import { useAuth } from '@/lib/auth/auth-context'
+import { rolePermissions } from '@/lib/config/roles'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
@@ -22,6 +23,8 @@ import {
 } from '@/components/ui/select'
 import type { Role } from '@/lib/types'
 
+const STAFF_ROLE_OPTIONS: Role[] = ['lead', 'sales', 'marketing', 'finance', 'hr', 'ops', 'marketing_staff', 'admin']
+
 export default function StaffDirectoryPage() {
   const { isLoading, hasAccess } = useProtectedRoute(['admin'])
   const { user } = useAuth()
@@ -30,7 +33,7 @@ export default function StaffDirectoryPage() {
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState(DEFAULT_PASSWORDS.staff)
-  const [role, setRole] = useState<Role>('marketing_staff')
+  const [role, setRole] = useState<Role>('marketing')
   const [message, setMessage] = useState('')
 
   const refresh = async () => {
@@ -61,7 +64,7 @@ export default function StaffDirectoryPage() {
       setUsername('')
       setEmail('')
       setPassword(role === 'admin' ? DEFAULT_PASSWORDS.admin : DEFAULT_PASSWORDS.staff)
-      setRole('marketing_staff')
+      setRole('marketing')
       setMessage('User created successfully.')
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Failed to create user.')
@@ -145,8 +148,11 @@ export default function StaffDirectoryPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="marketing_staff">User</SelectItem>
-              <SelectItem value="admin">Admin</SelectItem>
+              {STAFF_ROLE_OPTIONS.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {rolePermissions[option].label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Input
@@ -183,7 +189,7 @@ export default function StaffDirectoryPage() {
                   @{target.username} | {target.email}
                 </p>
                 <p className="text-[11px] text-muted-foreground">
-                  {target.role === 'admin' ? 'Admin' : 'User'} | {target.status}
+                  {rolePermissions[target.role]?.label ?? target.role} | {target.status}
                 </p>
               </div>
 

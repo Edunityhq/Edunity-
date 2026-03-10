@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
 import { collection, getDocs, limit, query, where } from 'firebase/firestore'
 import { getDb } from '@/lib/firebase'
+import { assignLeadRoundRobin } from '@/lib/lead-routing'
+import { logLeadActivity } from '@/lib/lead-audit'
+import { resolveReferralOwner } from '@/lib/referrals'
+import { getInitialOwnerTeam } from '@/lib/lead-workflows'
 import { createParentRequestAtomic, PARENT_REQUESTS_COLLECTION } from '@/lib/parent-requests'
 
 function normalizeEmail(value: unknown) {
@@ -23,6 +27,12 @@ export async function POST(request: Request) {
     const requestedSubjects = Array.isArray(body.requestedSubjects)
       ? body.requestedSubjects.filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
       : []
+    const referralCode =
+      typeof body.referralCode === 'string'
+        ? body.referralCode.trim()
+        : typeof body.ref === 'string'
+          ? body.ref.trim()
+          : ''
 
     if (!parentFullName || !parentEmailNormalized || !parentPhoneNormalized) {
       return NextResponse.json(
@@ -38,6 +48,7 @@ export async function POST(request: Request) {
       )
     }
 
+    const referralOwner = await resolveReferralOwner(referralCode)
     const db = getDb()
     const duplicateChecks = await Promise.all([
       getDocs(
@@ -60,10 +71,13 @@ export async function POST(request: Request) {
           limit(1)
         )
       ),
+      getDocs(query(collection(db, 'teacher_interests'), where('phoneNormalized', '==', parentPhoneNormalized), limit(1))),
+      getDocs(query(collection(db, 'school_leads'), where('phoneNumberNormalized', '==', parentPhoneNormalized), limit(1))),
     ])
 
     const duplicateEmail = !duplicateChecks[0].empty || !duplicateChecks[1].empty
     const duplicatePhone = !duplicateChecks[2].empty || !duplicateChecks[3].empty
+    const probableDuplicate = !duplicateChecks[4].empty || !duplicateChecks[5].empty
     if (duplicateEmail || duplicatePhone) {
       return NextResponse.json(
         {
@@ -82,6 +96,7 @@ export async function POST(request: Request) {
     const learners = Array.isArray(body.learners) ? body.learners : []
     const examFocus = Array.isArray(body.examFocus) ? body.examFocus : []
 
+    const initialTeamOwner = getInitialOwnerTeam('PARENT')
     const payload = {
       parentFullName,
       parentPhone: parentPhoneNormalized,
@@ -104,12 +119,67 @@ export async function POST(request: Request) {
       urgency: typeof body.urgency === 'string' ? body.urgency : '',
       additionalNotes: typeof body.additionalNotes === 'string' ? body.additionalNotes.trim() : '',
       consent: Boolean(body.consent),
-      status: 'new',
+      status: 'NEW',
       source: 'parent_form',
+      leadSource:
+        typeof body.leadSource === 'string' && body.leadSource.trim()
+          ? body.leadSource.trim()
+          : referralOwner.createdByUserId
+            ? 'referral_link'
+            : 'parent_form',
+      referralCode: referralOwner.referralCode,
+      createdByUserId: referralOwner.createdByUserId,
+      createdByUserName: referralOwner.createdByUserName,
+      leadType: 'PARENT',
+      isValid: true,
+      rejectionReason: '',
+      probableDuplicate,
+      duplicateFlagReason: probableDuplicate ? 'Phone number overlaps with an existing lead in another pipeline.' : '',
+      currentTeamOwner: initialTeamOwner,
+      assignedDepartment: initialTeamOwner,
+      qualifiedByUserId: '',
+      routedByUserId: '',
+      routedByUserName: '',
+      lastStatusChangedByUserId: '',
     }
 
     const created = await createParentRequestAtomic(payload)
-    return NextResponse.json({ ok: true, ...created }, { status: 201 })
+    const assignment = await assignLeadRoundRobin({
+      leadId: created.id,
+      collectionName: PARENT_REQUESTS_COLLECTION,
+      leadType: 'PARENT',
+      createdByUserId: referralOwner.createdByUserId,
+      createdByUserName: referralOwner.createdByUserName,
+      teamOwner: initialTeamOwner,
+      notes: 'Auto-assigned on parent lead creation.',
+    })
+
+    await logLeadActivity({
+      collectionName: PARENT_REQUESTS_COLLECTION,
+      leadId: created.id,
+      leadType: 'PARENT',
+      activityType: 'LEAD_CREATED',
+      message: `Parent lead created for ${parentFullName}.`,
+      userId: referralOwner.createdByUserId || 'system',
+      userName: referralOwner.createdByUserName || 'System',
+      nextStatus: 'NEW',
+      teamOwner: initialTeamOwner,
+      metadata: {
+        referralCode: referralOwner.referralCode,
+        assignedToUserId: assignment?.assignedUserId ?? '',
+        assignedToUserName: assignment?.assignedUserName ?? '',
+      },
+    })
+
+    return NextResponse.json(
+      {
+        ok: true,
+        ...created,
+        assignedToUserId: assignment?.assignedUserId ?? '',
+        assignedToUserName: assignment?.assignedUserName ?? '',
+      },
+      { status: 201 }
+    )
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ ok: false, error: message }, { status: 500 })

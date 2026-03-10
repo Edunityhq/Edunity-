@@ -104,9 +104,15 @@ export default function TeacherOnboardingForm() {
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
 
+  const getReferralCodeFromLocation = () => {
+    if (typeof window === 'undefined') return ''
+    return new URLSearchParams(window.location.search).get('ref')?.trim() || ''
+  }
+
   const saveTeacherLeadLocally = () => {
     const normalizedEmail = normalizeEmail(formData.email)
     const normalizedPhone = normalizePhone(formData.phoneNumber)
+    const referralCode = getReferralCodeFromLocation()
     const lead = {
       id: `teacher_local_${Date.now()}`,
       fullName: formData.fullName,
@@ -123,6 +129,10 @@ export default function TeacherOnboardingForm() {
       teachingExperience: formData.teachingExperience,
       createdAt: new Date().toISOString(),
       source: 'teacher_form',
+      status: 'INTERESTED',
+      currentTeamOwner: 'marketing',
+      assignedDepartment: 'marketing',
+      referralCode,
     }
 
     const existingRaw = window.localStorage.getItem(TEACHER_LEADS_STORAGE_KEY)
@@ -240,6 +250,7 @@ export default function TeacherOnboardingForm() {
     try {
       const normalizedEmail = normalizeEmail(formData.email)
       const normalizedPhone = normalizePhone(formData.phoneNumber)
+      const referralCode = getReferralCodeFromLocation()
       const { duplicateEmail, duplicatePhone } = await checkDuplicateContact(
         normalizedEmail,
         normalizedPhone
@@ -272,6 +283,10 @@ export default function TeacherOnboardingForm() {
         privateTutoring: formData.privateTutoring,
         teachingExperience: formData.teachingExperience,
         consent: formData.consent,
+        status: 'INTERESTED',
+        currentTeamOwner: 'marketing',
+        assignedDepartment: 'marketing',
+        referralCode,
       }
 
       console.log('Submitting payload:', payload)

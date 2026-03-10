@@ -6,6 +6,6 @@ export const metadata: Metadata = {
   description: 'Submit your teacher onboarding form to Edunity.',
 }
 
-export default function TeacherJoinPage() {
+export default function TeacherOnboardingPage() {
   return <TeacherOnboardingForm />
 }

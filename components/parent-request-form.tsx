@@ -11,6 +11,7 @@ import { ChevronLeft, ChevronRight, Check, Star } from 'lucide-react'
 import { getAreasByStateLga, getLgasByState, getStates } from '@/data/locations'
 import { addDoc, collection, getDocs, limit, query, serverTimestamp, where } from 'firebase/firestore'
 import { getDb } from '@/lib/firebase'
+import { isParentRequestHost } from '@/lib/host-routing'
 
 const SUBJECTS_BY_CLASS: Record<string, string[]> = {
   'Nursery / Early Years': [
@@ -127,10 +128,13 @@ export default function ParentRequestForm() {
 
   const normalizeEmail = (email: string) => email.trim().toLowerCase()
   const normalizePhone = (phone: string) => phone.replace(/\D/g, '')
-  const isParentRequestHost = () => {
+  const isParentRequestRuntimeHost = () => {
     if (typeof window === 'undefined') return false
-    const host = window.location.hostname.toLowerCase()
-    return host.includes('parent-request')
+    return isParentRequestHost(window.location.host)
+  }
+  const getReferralCodeFromLocation = () => {
+    if (typeof window === 'undefined') return ''
+    return new URLSearchParams(window.location.search).get('ref')?.trim() || ''
   }
 
   const submitViaClientFirestore = async (payload: Record<string, unknown>) => {
@@ -236,6 +240,7 @@ export default function ParentRequestForm() {
     try {
       const parentEmailNormalized = normalizeEmail(formData.parentEmail)
       const parentPhoneNormalized = normalizePhone(formData.parentPhone)
+      const referralCode = getReferralCodeFromLocation()
       const payload = {
         parentFullName: formData.parentFullName.trim(),
         parentPhone: parentPhoneNormalized,
@@ -265,11 +270,14 @@ export default function ParentRequestForm() {
         urgency: formData.urgency,
         additionalNotes: formData.additionalNotes.trim(),
         consent: formData.consent,
-        status: 'new',
+        status: 'NEW',
+        currentTeamOwner: 'marketing',
+        assignedDepartment: 'marketing',
+        referralCode,
       }
 
       saveParentRequestLocally(payload)
-      if (isParentRequestHost()) {
+      if (isParentRequestRuntimeHost()) {
         const duplicate = await checkDuplicateViaClientFirestore(parentEmailNormalized, parentPhoneNormalized)
         if (duplicate.duplicateEmail || duplicate.duplicatePhone) {
           throw new Error(duplicate.duplicateEmail ? 'This email already has a request.' : 'This phone already has a request.')

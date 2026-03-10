@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
 import { collection, getDocs, limit, query, where } from 'firebase/firestore'
 import { getDb } from '@/lib/firebase'
+import { assignLeadRoundRobin } from '@/lib/lead-routing'
+import { logLeadActivity } from '@/lib/lead-audit'
+import { resolveReferralOwner } from '@/lib/referrals'
+import { getInitialOwnerTeam } from '@/lib/lead-workflows'
 import {
   createTeacherLeadAtomic,
   TEACHER_LEAD_DUPLICATE_EMAIL_ERROR,
@@ -22,6 +26,12 @@ export async function POST(request: Request) {
     const fullName = typeof body.fullName === 'string' ? body.fullName.trim() : ''
     const emailNormalized = normalizeEmail(body.email)
     const phoneNormalized = normalizePhone(body.phone)
+    const referralCode =
+      typeof body.referralCode === 'string'
+        ? body.referralCode.trim()
+        : typeof body.ref === 'string'
+          ? body.ref.trim()
+          : ''
 
     if (!fullName || !emailNormalized || !phoneNormalized) {
       return NextResponse.json(
@@ -30,6 +40,7 @@ export async function POST(request: Request) {
       )
     }
 
+    const referralOwner = await resolveReferralOwner(referralCode)
     const db = getDb()
     const duplicateChecks = await Promise.all([
       getDocs(query(collection(db, TEACHER_LEADS_COLLECTION), where('email', '==', emailNormalized), limit(1))),
@@ -40,10 +51,13 @@ export async function POST(request: Request) {
       getDocs(
         query(collection(db, TEACHER_LEADS_COLLECTION), where('phoneNormalized', '==', phoneNormalized), limit(1))
       ),
+      getDocs(query(collection(db, 'parent_requests'), where('parentPhoneNormalized', '==', phoneNormalized), limit(1))),
+      getDocs(query(collection(db, 'school_leads'), where('phoneNumberNormalized', '==', phoneNormalized), limit(1))),
     ])
 
     const duplicateEmail = !duplicateChecks[0].empty || !duplicateChecks[1].empty
     const duplicatePhone = !duplicateChecks[2].empty || !duplicateChecks[3].empty
+    const probableDuplicate = !duplicateChecks[4].empty || !duplicateChecks[5].empty
     if (duplicateEmail || duplicatePhone) {
       return NextResponse.json(
         {
@@ -56,6 +70,7 @@ export async function POST(request: Request) {
       )
     }
 
+    const initialTeamOwner = getInitialOwnerTeam('TEACHER')
     const payload = {
       fullName,
       email: emailNormalized,
@@ -75,10 +90,66 @@ export async function POST(request: Request) {
       teachingExperience: typeof body.teachingExperience === 'string' ? body.teachingExperience : '',
       consent: Boolean(body.consent),
       source: 'teacher_form',
+      leadSource:
+        typeof body.leadSource === 'string' && body.leadSource.trim()
+          ? body.leadSource.trim()
+          : referralOwner.createdByUserId
+            ? 'referral_link'
+            : 'teacher_form',
+      referralCode: referralOwner.referralCode,
+      createdByUserId: referralOwner.createdByUserId,
+      createdByUserName: referralOwner.createdByUserName,
+      leadType: 'TEACHER',
+      status: 'INTERESTED',
+      isValid: true,
+      rejectionReason: '',
+      probableDuplicate,
+      duplicateFlagReason: probableDuplicate ? 'Phone number overlaps with an existing lead in another pipeline.' : '',
+      currentTeamOwner: initialTeamOwner,
+      assignedDepartment: initialTeamOwner,
+      qualifiedByUserId: '',
+      routedByUserId: '',
+      routedByUserName: '',
+      lastStatusChangedByUserId: '',
     }
 
     const created = await createTeacherLeadAtomic(payload)
-    return NextResponse.json({ ok: true, ...created }, { status: 201 })
+    const assignment = await assignLeadRoundRobin({
+      leadId: created.id,
+      collectionName: TEACHER_LEADS_COLLECTION,
+      leadType: 'TEACHER',
+      createdByUserId: referralOwner.createdByUserId,
+      createdByUserName: referralOwner.createdByUserName,
+      teamOwner: initialTeamOwner,
+      notes: 'Auto-assigned on teacher lead creation.',
+    })
+
+    await logLeadActivity({
+      collectionName: TEACHER_LEADS_COLLECTION,
+      leadId: created.id,
+      leadType: 'TEACHER',
+      activityType: 'LEAD_CREATED',
+      message: `Teacher lead created for ${fullName}.`,
+      userId: referralOwner.createdByUserId || 'system',
+      userName: referralOwner.createdByUserName || 'System',
+      nextStatus: 'INTERESTED',
+      teamOwner: initialTeamOwner,
+      metadata: {
+        referralCode: referralOwner.referralCode,
+        assignedToUserId: assignment?.assignedUserId ?? '',
+        assignedToUserName: assignment?.assignedUserName ?? '',
+      },
+    })
+
+    return NextResponse.json(
+      {
+        ok: true,
+        ...created,
+        assignedToUserId: assignment?.assignedUserId ?? '',
+        assignedToUserName: assignment?.assignedUserName ?? '',
+      },
+      { status: 201 }
+    )
   } catch (error) {
     if (error instanceof Error && error.message === TEACHER_LEAD_DUPLICATE_EMAIL_ERROR) {
       return NextResponse.json(

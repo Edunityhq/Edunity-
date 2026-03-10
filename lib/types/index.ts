@@ -1,5 +1,51 @@
 // Role types
-export type Role = 'admin' | 'marketing_staff';
+export type Role =
+  | 'admin'
+  | 'lead'
+  | 'sales'
+  | 'marketing'
+  | 'finance'
+  | 'hr'
+  | 'ops'
+  | 'marketing_staff';
+
+export type TeamOwner =
+  | 'lead'
+  | 'marketing'
+  | 'sales'
+  | 'hr'
+  | 'finance'
+  | 'ops';
+
+export type LeadType = 'SCHOOL' | 'PARENT' | 'TEACHER';
+
+export type LeadStatus =
+  | 'NEW'
+  | 'CONTACTED'
+  | 'INTERESTED'
+  | 'ROUTED'
+  | 'MEETING_SCHEDULED'
+  | 'MEETING_CONFIRMED'
+  | 'MEETING_ACCEPTED'
+  | 'MEETING_DONE'
+  | 'MEETING_COMPLETED'
+  | 'PROPOSAL_SENT'
+  | 'NEGOTIATION'
+  | 'VERBAL_YES'
+  | 'CONTRACT_SENT'
+  | 'INTRO_COMPLETE'
+  | 'SCHOOL_OPTIONS_SENT'
+  | 'PARENT_DECISION_PENDING'
+  | 'ENROLLMENT_CONFIRMED'
+  | 'ONBOARDING_COMPLETED'
+  | 'SENT_TO_HR'
+  | 'UNDER_VERIFICATION'
+  | 'APPROVED'
+  | 'CLOSED_WON'
+  | 'CLOSED_LOST'
+  | 'CONVERTED'
+  | 'LOST'
+  | 'REJECTED';
 
 export interface User {
   id: string;

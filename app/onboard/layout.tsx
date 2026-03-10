@@ -8,7 +8,7 @@ export default function OnboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { isLoading, hasAccess } = useProtectedRoute(['admin']);
+  const { isLoading, hasAccess } = useProtectedRoute(['admin', 'lead', 'sales', 'ops']);
 
   if (isLoading) {
     return (

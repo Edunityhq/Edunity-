@@ -5,14 +5,13 @@ import ParentRequestForm from '@/components/parent-request-form'
 import { isParentRequestHost } from '@/lib/host-routing'
 
 export const metadata: Metadata = {
-  title: 'Parent Request Form',
+  title: 'Parent Interest',
   description: 'Submit your learner tutoring request to Edunity.',
 }
 
-export default async function ParentJoinPage() {
+export default async function ParentInterestPage() {
   const host = ((await headers()).get('host') ?? '').toLowerCase()
 
-  // Keep canonical parent-request host on "/" and avoid duplicate route content.
   if (isParentRequestHost(host)) {
     redirect('/')
   }
