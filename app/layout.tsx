@@ -3,6 +3,7 @@ import type { Viewport } from 'next'
 import { Inter } from 'next/font/google'
 
 import './globals.css'
+import AuthSessionSync from '@/components/auth-session-sync'
 import { AuthProvider } from '@/lib/auth/auth-context'
 import { ThemeProvider } from '@/lib/theme/theme-provider'
 
@@ -33,6 +34,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.className} font-sans antialiased`}>
         <ThemeProvider>
+          <AuthSessionSync />
           <AuthProvider>{children}</AuthProvider>
         </ThemeProvider>
       </body>
